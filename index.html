@@ -95,6 +95,13 @@
 
       <article class="card">
         <h3>Reference passage <small id="passageMeta" class="muted"></small></h3>
+        <div class="source-row">
+          <p class="source-line">Source: <strong id="articleTitle">Offline library</strong>
+            <a id="articleLink" href="#" target="_blank" rel="noopener" hidden>Read on Wikipedia</a>
+          </p>
+          <p id="loadingIndicator" class="loading" hidden aria-live="polite">Fetching Wikipedia passage…</p>
+          <p id="passageStatus" class="muted status-line" role="status" aria-live="polite"></p>
+        </div>
         <div id="passageDisplay" class="passage" aria-label="Reference passage to type"></div>
         <label for="typingInput">Type the passage here (timer starts when you type)</label>
         <textarea

@@ -30,9 +30,21 @@ const PASSAGES = {
 
 const STORAGE_KEY = "tpt_history_v1";
 
+// Wikipedia API (no key required). Difficulty levels are approximate,
+// client-side heuristics — Wikipedia does not label articles by difficulty.
+const WIKI_API_URL = "https://en.wikipedia.org/api/rest_v1/page/random/summary";
+const WIKI_MAX_ATTEMPTS = 3;
+const WIKI_MIN_CHARS = 80;
+const FALLBACK_MESSAGE = "Unable to fetch a new passage. Using an offline passage instead.";
+
 // ---------- State ----------
 let currentPassage = "";
 let currentDifficulty = "easy";
+let currentTitle = "Offline library";
+let currentSourceUrl = "";
+let lastWikiTitle = "";     // avoid immediately repeating the same article
+let passageRequestSeq = 0;  // guards against stale async responses
+let isFetchingPassage = false;
 let testDuration = 60;      // seconds (30 / 60 / 120)
 let timeLeft = 60;
 let timerId = null;         // interval handle, null when not running
@@ -46,6 +58,12 @@ const passageMeta = document.getElementById("passageMeta");
 const typingInput = document.getElementById("typingInput");
 const durationSelect = document.getElementById("durationSelect");
 const resultsModal = document.getElementById("resultsModal");
+const articleTitle = document.getElementById("articleTitle");
+const articleLink = document.getElementById("articleLink");
+const passageStatus = document.getElementById("passageStatus");
+const loadingIndicator = document.getElementById("loadingIndicator");
+const newPassageBtn = document.getElementById("newPassageBtn");
+const startBtn = document.getElementById("startBtn");
 
 // ---------- Helpers ----------
 function getSelectedDifficulty() {
@@ -57,6 +75,157 @@ function getRandomPassage(difficulty) {
   const list = PASSAGES[difficulty] || PASSAGES.easy;
   const index = Math.floor(Math.random() * list.length);
   return list[index];
+}
+
+// ---------- Wikipedia integration ----------
+function isValidWikiUrl(url) {
+  return typeof url === "string" && url.indexOf("https://en.wikipedia.org/") === 0;
+}
+
+// Collapse whitespace so the passage is clean for typing practice.
+function cleanWikiText(raw) {
+  return String(raw || "").replace(/\s+/g, " ").trim();
+}
+
+function splitSentences(text) {
+  const matches = String(text).match(/[^.!?]+[.!?]+/g);
+  if (!matches || matches.length === 0) return [text].filter(Boolean);
+  return matches.map(function (s) { return s.trim(); }).filter(Boolean);
+}
+
+function analyzeText(text) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const sentences = splitSentences(text);
+  const wordCount = words.length;
+  const avgWords = sentences.length > 0 ? wordCount / sentences.length : wordCount;
+  let longWords = 0;
+  for (let i = 0; i < words.length; i++) {
+    const plain = words[i].replace(/[^A-Za-z]/g, "");
+    if (plain.length >= 8) longWords++;
+  }
+  return {
+    chars: text.length,
+    words: wordCount,
+    sentences: sentences.length,
+    avgWords: avgWords,
+    longRatio: wordCount > 0 ? longWords / wordCount : 0
+  };
+}
+
+// Approximate difficulty (measurable criteria only — not a readability grade).
+function passageMeetsDifficulty(text, difficulty) {
+  const a = analyzeText(text);
+  if (difficulty === "easy") {
+    return a.chars <= 260 && a.avgWords <= 16 && a.longRatio < 0.18;
+  }
+  if (difficulty === "hard") {
+    return a.chars >= 280 || a.avgWords >= 17 || a.longRatio >= 0.15;
+  }
+  // medium: moderately long, normal sentence structure
+  return a.chars >= 150 && a.chars <= 420 && a.avgWords <= 22;
+}
+
+// Use a suitable section of the summary (not always the whole extract).
+function extractSectionForDifficulty(cleaned, difficulty) {
+  const targets = {
+    easy: { sentences: 2, maxChars: 220 },
+    medium: { sentences: 3, maxChars: 350 },
+    hard: { sentences: 4, maxChars: 520 }
+  };
+  const t = targets[difficulty] || targets.medium;
+  const sentences = splitSentences(cleaned);
+  let out = "";
+  for (let i = 0; i < sentences.length && i < t.sentences; i++) {
+    const next = out ? out + " " + sentences[i] : sentences[i];
+    if (next.length > t.maxChars && out) break;
+    out = next;
+  }
+  if (!out) out = cleaned.slice(0, t.maxChars);
+  // Trim to a word boundary when truncating.
+  if (out.length < cleaned.length && out.length >= t.maxChars) {
+    const cut = out.slice(0, t.maxChars);
+    const space = cut.lastIndexOf(" ");
+    out = (space > 40 ? cut.slice(0, space) : cut).trim();
+    if (!/[.!?]$/.test(out)) out += ".";
+  }
+  return out;
+}
+
+// Fetch ONE random article summary and validate it. Throws on any problem.
+async function fetchWikipediaPassage() {
+  const response = await fetch(WIKI_API_URL, { headers: { accept: "application/json" } });
+  if (!response.ok) throw new Error("HTTP " + response.status);
+  const data = await response.json();
+  const title = data && typeof data.title === "string" ? data.title.trim() : "";
+  const extract = data && typeof data.extract === "string" ? data.extract : "";
+  let url = "";
+  if (data && data.content_urls && data.content_urls.desktop &&
+      typeof data.content_urls.desktop.page === "string") {
+    url = data.content_urls.desktop.page;
+  }
+  if (!title || !extract) throw new Error("Missing fields");
+  const cleaned = cleanWikiText(extract);
+  if (cleaned.length < WIKI_MIN_CHARS) throw new Error("Summary too short");
+  return { title: title, text: cleaned, url: isValidWikiUrl(url) ? url : "" };
+}
+
+// Try up to WIKI_MAX_ATTEMPTS to find a passage fitting the difficulty.
+// Returns the best valid candidate; throws if every attempt failed.
+async function getPassageForDifficulty(difficulty) {
+  let best = null;
+  for (let attempt = 0; attempt < WIKI_MAX_ATTEMPTS; attempt++) {
+    const raw = await fetchWikipediaPassage(); // may throw -> caller falls back
+    if (raw.title === lastWikiTitle) continue; // avoid immediate repeat
+    const section = extractSectionForDifficulty(raw.text, difficulty);
+    if (section.length < WIKI_MIN_CHARS) continue; // reject short sections
+    const candidate = { title: raw.title, text: section, url: raw.url };
+    if (!best) best = candidate;
+    if (passageMeetsDifficulty(section, difficulty)) return candidate;
+  }
+  if (best) return best;
+  throw new Error("No suitable passage");
+}
+
+function getOfflinePassage(difficulty) {
+  return { title: "Offline library", text: getRandomPassage(difficulty), url: "" };
+}
+
+// Apply a passage object {title, text, url} and reset the test state.
+function preparePassage(passageObj) {
+  currentPassage = passageObj.text;
+  currentTitle = passageObj.title || "Offline library";
+  currentSourceUrl = passageObj.url || "";
+  if (currentSourceUrl) lastWikiTitle = currentTitle;
+  resetTestState();
+  updateSourceDisplay();
+}
+
+function updateSourceDisplay() {
+  // textContent only — never inject article text as HTML.
+  articleTitle.textContent = currentTitle;
+  if (currentSourceUrl) {
+    articleLink.href = currentSourceUrl;
+    articleLink.hidden = false;
+  } else {
+    articleLink.removeAttribute("href");
+    articleLink.hidden = true;
+  }
+  const tag = currentSourceUrl ? "Wikipedia" : "offline";
+  passageMeta.textContent =
+    "(" + currentDifficulty + ", " + currentPassage.length + " chars, " + tag + ")";
+}
+
+function showPassageStatus(message, isError) {
+  passageStatus.textContent = message || "";
+  if (isError) passageStatus.classList.add("status-error");
+  else passageStatus.classList.remove("status-error");
+}
+
+function setPassageLoading(loading) {
+  isFetchingPassage = loading;
+  loadingIndicator.hidden = !loading;
+  newPassageBtn.disabled = loading;
+  startBtn.disabled = loading;
 }
 
 function getElapsedSeconds() {
@@ -107,7 +276,6 @@ function renderPassageSpans() {
     span.textContent = currentPassage[i];
     passageDisplay.appendChild(span);
   }
-  passageMeta.textContent = "(" + currentDifficulty + ", " + currentPassage.length + " chars)";
 }
 
 function updateTypingDisplay() {
@@ -166,12 +334,28 @@ function stopTimer() {
 }
 
 // ---------- Test control ----------
-function startTest() {
+async function startTest() {
+  if (isFetchingPassage) return; // prevent conflicting requests
+  const myId = ++passageRequestSeq;
   stopTimer(); // prevent duplicate timers
   currentDifficulty = getSelectedDifficulty();
   testDuration = parseInt(durationSelect.value, 10) || 60;
-  currentPassage = getRandomPassage(currentDifficulty);
-  resetTestState();
+  hideResults();
+  setPassageLoading(true);
+  showPassageStatus("");
+  try {
+    const wiki = await getPassageForDifficulty(currentDifficulty);
+    if (myId !== passageRequestSeq) return; // stale response — ignore
+    preparePassage(wiki);
+    showPassageStatus("");
+  } catch (e) {
+    if (myId !== passageRequestSeq) return;
+    preparePassage(getOfflinePassage(currentDifficulty));
+    showPassageStatus(FALLBACK_MESSAGE, true);
+  } finally {
+    if (myId === passageRequestSeq) setPassageLoading(false);
+  }
+  document.getElementById("test").scrollIntoView({ behavior: "smooth" });
 }
 
 function resetTestState() {
@@ -183,25 +367,61 @@ function resetTestState() {
   typingInput.disabled = false;
   resultsModal.hidden = true;
   renderPassageSpans();
+  updateSourceDisplay();
   updateTypingDisplay();
   typingInput.focus();
 }
 
 function restartTest() {
-  // Same passage, fresh timer and stats.
+  // Same passage, fresh timer and stats (no fetch — works offline too).
+  if (isFetchingPassage) return;
   stopTimer();
   testDuration = parseInt(durationSelect.value, 10) || 60;
   currentDifficulty = getSelectedDifficulty();
   resetTestState();
 }
 
-function pickNewPassage() {
+async function pickNewPassage() {
+  if (isFetchingPassage) return; // New Passage disabled while loading (guard too)
+  const myId = ++passageRequestSeq;
   stopTimer();
   currentDifficulty = getSelectedDifficulty();
   testDuration = parseInt(durationSelect.value, 10) || 60;
-  currentPassage = getRandomPassage(currentDifficulty);
-  resetTestState();
+  hideResults();
+  setPassageLoading(true);
+  showPassageStatus("");
+  try {
+    const wiki = await getPassageForDifficulty(currentDifficulty);
+    if (myId !== passageRequestSeq) return;
+    preparePassage(wiki);
+    showPassageStatus("");
+  } catch (e) {
+    if (myId !== passageRequestSeq) return;
+    preparePassage(getOfflinePassage(currentDifficulty));
+    showPassageStatus(FALLBACK_MESSAGE, true);
+  } finally {
+    if (myId === passageRequestSeq) setPassageLoading(false);
+  }
   document.getElementById("test").scrollIntoView({ behavior: "smooth" });
+}
+
+// Initial load: show an offline passage instantly (usable without internet),
+// then quietly upgrade to a Wikipedia passage if the user hasn't started typing.
+async function loadInitialPassage() {
+  const myId = ++passageRequestSeq;
+  setPassageLoading(true);
+  try {
+    const wiki = await getPassageForDifficulty(currentDifficulty);
+    if (myId !== passageRequestSeq) return;
+    if (typingInput.value !== "" || startTime !== null) return; // user busy — keep current
+    preparePassage(wiki);
+    showPassageStatus("");
+  } catch (e) {
+    if (myId !== passageRequestSeq) return;
+    // Offline passage already showing — stay silent, no error needed on load.
+  } finally {
+    if (myId === passageRequestSeq) setPassageLoading(false);
+  }
 }
 
 function finishTest() {
@@ -459,17 +679,23 @@ function drawPerformanceChart() {
 
 // ---------- Init + events ----------
 function initializeApp() {
-  // Default passage so the page is usable immediately.
+  // Show an offline passage instantly so the test works without internet,
+  // then try to upgrade to a Wikipedia passage in the background.
   currentDifficulty = getSelectedDifficulty();
   testDuration = parseInt(durationSelect.value, 10) || 60;
-  currentPassage = getRandomPassage(currentDifficulty);
+  const offline = getOfflinePassage(currentDifficulty);
+  currentPassage = offline.text;
+  currentTitle = offline.title;
+  currentSourceUrl = "";
   timeLeft = testDuration;
   testActive = true;
   resultSaved = false;
   renderPassageSpans();
+  updateSourceDisplay();
   updateTypingDisplay();
   updateDashboard();
   drawPerformanceChart();
+  loadInitialPassage();
 
   // Typing: start timer on first input, update highlights + stats.
   typingInput.addEventListener("input", function () {
@@ -494,16 +720,16 @@ function initializeApp() {
 
   document.getElementById("startBtn").addEventListener("click", function () {
     startTest();
-    document.getElementById("test").scrollIntoView({ behavior: "smooth" });
   });
   document.getElementById("restartBtn").addEventListener("click", restartTest);
   document.getElementById("newPassageBtn").addEventListener("click", pickNewPassage);
   document.getElementById("clearHistoryBtn").addEventListener("click", clearHistory);
 
-  // Changing settings starts a fresh test with the new option.
+  // Difficulty changes fetch a fresh passage for that level;
+  // duration changes only reset the timer (same passage, no fetch).
   const radios = document.querySelectorAll('input[name="difficulty"]');
   for (let i = 0; i < radios.length; i++) {
-    radios[i].addEventListener("change", restartTest);
+    radios[i].addEventListener("change", pickNewPassage);
   }
   durationSelect.addEventListener("change", restartTest);
 
