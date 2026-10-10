@@ -63,6 +63,7 @@ const articleLink = document.getElementById("articleLink");
 const passageStatus = document.getElementById("passageStatus");
 const loadingIndicator = document.getElementById("loadingIndicator");
 const newPassageBtn = document.getElementById("newPassageBtn");
+const restartBtn = document.getElementById("restartBtn");
 const startBtn = document.getElementById("startBtn");
 
 // ---------- Helpers ----------
@@ -169,17 +170,36 @@ async function fetchWikipediaPassage() {
   return { title: title, text: cleaned, url: isValidWikiUrl(url) ? url : "" };
 }
 
+// Score how well a candidate fits the difficulty (lower is better).
+// Used to keep the "best available" passage when none passes the filter.
+function difficultyScore(text, difficulty) {
+  const a = analyzeText(text);
+  if (difficulty === "easy") {
+    return a.avgWords + 100 * a.longRatio + a.chars / 500; // prefer short, simple
+  }
+  if (difficulty === "hard") {
+    return -(a.avgWords + 100 * a.longRatio + a.chars / 200); // prefer long, complex
+  }
+  // medium: prefer near 250 chars and ~15 words per sentence
+  return Math.abs(a.chars - 250) / 50 + Math.abs(a.avgWords - 15);
+}
+
 // Try up to WIKI_MAX_ATTEMPTS to find a passage fitting the difficulty.
-// Returns the best valid candidate; throws if every attempt failed.
+// Returns the best-scoring candidate; throws if every attempt failed.
 async function getPassageForDifficulty(difficulty) {
   let best = null;
+  let bestScore = Infinity;
   for (let attempt = 0; attempt < WIKI_MAX_ATTEMPTS; attempt++) {
     const raw = await fetchWikipediaPassage(); // may throw -> caller falls back
     if (raw.title === lastWikiTitle) continue; // avoid immediate repeat
     const section = extractSectionForDifficulty(raw.text, difficulty);
     if (section.length < WIKI_MIN_CHARS) continue; // reject short sections
     const candidate = { title: raw.title, text: section, url: raw.url };
-    if (!best) best = candidate;
+    const score = difficultyScore(section, difficulty);
+    if (!best || score < bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
     if (passageMeetsDifficulty(section, difficulty)) return candidate;
   }
   if (best) return best;
@@ -224,7 +244,10 @@ function showPassageStatus(message, isError) {
 function setPassageLoading(loading) {
   isFetchingPassage = loading;
   loadingIndicator.hidden = !loading;
+  // Freeze passage-changing controls while loading so a late response
+  // can never clobber a restarted test. Dashboard/history stay usable.
   newPassageBtn.disabled = loading;
+  restartBtn.disabled = loading;
   startBtn.disabled = loading;
 }
 
