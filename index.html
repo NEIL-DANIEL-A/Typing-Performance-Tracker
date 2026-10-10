@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Typing Performance Tracker - practise typing and measure speed and accuracy." />
+  <title>Typing Performance Tracker</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">⌨</span>
+        <div>
+          <h1 class="brand-title">Typing Performance Tracker</h1>
+          <p class="brand-sub">Practise typing. Measure speed. Improve accuracy.</p>
+        </div>
+      </div>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="#dashboard">Dashboard</a>
+        <a href="#test">Test</a>
+        <a href="#history">History</a>
+        <a href="#help">Help</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ============ DASHBOARD ============ -->
+    <section id="dashboard" aria-labelledby="dashboard-heading">
+      <h2 id="dashboard-heading">Home Dashboard</h2>
+      <article class="card intro-card">
+        <p>
+          Welcome to the <strong>Typing Performance Tracker</strong>! Pick a difficulty,
+          type the passage shown, and see your live speed (WPM) and accuracy.
+          Your best scores are saved in this browser with LocalStorage.
+        </p>
+        <button id="startBtn" class="btn btn-primary" type="button">Start Typing Test</button>
+      </article>
+
+      <p id="emptyState" class="empty-state">
+        No tests completed yet. Click <strong>Start Typing Test</strong> to take your first test!
+      </p>
+
+      <div class="stats-grid" id="dashboardStats" aria-live="polite">
+        <article class="card stat-card">
+          <h3>Best Speed</h3>
+          <p class="stat-value"><span id="statBest">—</span> <small>WPM</small></p>
+        </article>
+        <article class="card stat-card">
+          <h3>Latest Speed</h3>
+          <p class="stat-value"><span id="statLatest">—</span> <small>WPM</small></p>
+        </article>
+        <article class="card stat-card">
+          <h3>Average Speed</h3>
+          <p class="stat-value"><span id="statAverage">—</span> <small>WPM</small></p>
+        </article>
+        <article class="card stat-card">
+          <h3>Latest Accuracy</h3>
+          <p class="stat-value"><span id="statAccuracy">—</span> <small>%</small></p>
+        </article>
+        <article class="card stat-card">
+          <h3>Tests Completed</h3>
+          <p class="stat-value"><span id="statTotal">0</span></p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ TYPING TEST ============ -->
+    <section id="test" aria-labelledby="test-heading">
+      <h2 id="test-heading">Typing Test</h2>
+
+      <article class="card test-controls">
+        <div class="control-group">
+          <fieldset>
+            <legend>Difficulty</legend>
+            <label><input type="radio" name="difficulty" value="easy" checked /> Easy</label>
+            <label><input type="radio" name="difficulty" value="medium" /> Medium</label>
+            <label><input type="radio" name="difficulty" value="hard" /> Hard</label>
+          </fieldset>
+        </div>
+        <div class="control-group">
+          <label for="durationSelect">Duration</label>
+          <select id="durationSelect">
+            <option value="30">30 seconds</option>
+            <option value="60" selected>60 seconds</option>
+            <option value="120">120 seconds</option>
+          </select>
+        </div>
+        <div class="control-group button-row">
+          <button id="restartBtn" class="btn btn-secondary" type="button">Restart Test</button>
+          <button id="newPassageBtn" class="btn btn-secondary" type="button">New Passage</button>
+        </div>
+      </article>
+
+      <article class="card">
+        <h3>Reference passage <small id="passageMeta" class="muted"></small></h3>
+        <div id="passageDisplay" class="passage" aria-label="Reference passage to type"></div>
+        <label for="typingInput">Type the passage here (timer starts when you type)</label>
+        <textarea
+          id="typingInput"
+          rows="5"
+          placeholder="Click here and start typing…"
+          spellcheck="false"
+          autocomplete="off"
+          autocapitalize="off"
+        ></textarea>
+      </article>
+
+      <article class="card">
+        <h3>Live Statistics</h3>
+        <div class="stats-grid live-grid" aria-live="polite">
+          <div class="live-stat"><span class="live-label">Time left</span><span class="live-value" id="liveTime">60s</span></div>
+          <div class="live-stat"><span class="live-label">WPM</span><span class="live-value" id="liveWpm">0</span></div>
+          <div class="live-stat"><span class="live-label">Accuracy</span><span class="live-value" id="liveAccuracy">100%</span></div>
+          <div class="live-stat"><span class="live-label">Correct</span><span class="live-value" id="liveCorrect">0</span></div>
+          <div class="live-stat"><span class="live-label">Incorrect</span><span class="live-value" id="liveIncorrect">0</span></div>
+          <div class="live-stat"><span class="live-label">Typed</span><span class="live-value" id="liveTyped">0</span></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- ============ HISTORY ============ -->
+    <section id="history" aria-labelledby="history-heading">
+      <h2 id="history-heading">Performance History</h2>
+      <article class="card">
+        <p class="muted">
+          Results are stored in <strong>this browser only</strong> (LocalStorage).
+          They are not synced across devices and are lost if you clear browser data.
+        </p>
+        <div class="history-summary">
+          <p>Personal best: <strong id="historyBest">—</strong></p>
+          <p>Average WPM: <strong id="historyAvg">—</strong></p>
+        </div>
+        <canvas id="performanceChart" width="600" height="260" aria-label="Line chart of WPM across previous attempts"></canvas>
+        <p id="chartSummary" class="muted">No chart data yet. Complete a test to see your progress.</p>
+        <div class="button-row">
+          <button id="clearHistoryBtn" class="btn btn-danger" type="button">Clear History</button>
+        </div>
+        <h3>Previous attempts</h3>
+        <ul id="historyList" class="history-list"></ul>
+      </article>
+    </section>
+
+    <!-- ============ HELP ============ -->
+    <section id="help" aria-labelledby="help-heading">
+      <h2 id="help-heading">Instructions &amp; Help</h2>
+      <article class="card">
+        <h3>How to start a test</h3>
+        <ol>
+          <li>Choose a difficulty (Easy, Medium, Hard) and a duration (30, 60, or 120 seconds).</li>
+          <li>Click <strong>Start Typing Test</strong>, then click inside the text box.</li>
+          <li>Start typing — the timer begins on your first keystroke.</li>
+          <li>The test ends when time runs out or you finish the whole passage.</li>
+        </ol>
+      </article>
+      <article class="card">
+        <h3>How scores are calculated</h3>
+        <ul>
+          <li><strong>WPM</strong> (words per minute) uses the standard 5-characters-per-word rule:<br />
+            <code>WPM = (Correct Characters ÷ 5) ÷ Elapsed Minutes</code></li>
+          <li><strong>Accuracy</strong> = <code>(Correct Characters ÷ Total Characters Typed) × 100</code>.
+            Empty input counts as 100% until you type.</li>
+          <li>Scores are computed from your <strong>final text</strong>, so deleting and
+            retyping cannot inflate your score — only characters correct at the end count.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Difficulty levels</h3>
+        <ul>
+          <li><strong>Easy:</strong> short, simple everyday sentences.</li>
+          <li><strong>Medium:</strong> longer sentences with commas and mixed words.</li>
+          <li><strong>Hard:</strong> advanced vocabulary and punctuation.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Reading your history</h3>
+        <p>
+          Each saved attempt shows date, WPM, accuracy, correct/incorrect counts,
+          difficulty, and duration. The line chart plots recent WPM scores so you can
+          compare attempts and watch your average improve.
+        </p>
+      </article>
+    </section>
+  </main>
+
+  <!-- ============ RESULTS MODAL ============ -->
+  <div id="resultsModal" class="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="results-heading">
+      <h2 id="results-heading">Test Results</h2>
+      <div class="results-grid">
+        <p>Final WPM: <strong id="resWpm">0</strong></p>
+        <p>Accuracy: <strong id="resAccuracy">0%</strong></p>
+        <p>Correct: <strong id="resCorrect">0</strong></p>
+        <p>Incorrect: <strong id="resIncorrect">0</strong></p>
+        <p>Total typed: <strong id="resTotal">0</strong></p>
+        <p>Duration: <strong id="resDuration">60s</strong></p>
+        <p>Difficulty: <strong id="resDifficulty">easy</strong></p>
+      </div>
+      <p id="resMessage" class="result-message"></p>
+      <div class="button-row">
+        <button id="tryAgainBtn" class="btn btn-primary" type="button">Try Again</button>
+        <button id="anotherPassageBtn" class="btn btn-secondary" type="button">Another Passage</button>
+        <button id="dashboardBtn" class="btn btn-secondary" type="button">Dashboard</button>
+        <button id="viewHistoryBtn" class="btn btn-secondary" type="button">View History</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Typing Performance Tracker — HTML5, CSS3 &amp; vanilla JavaScript mini-project. Data stays in your browser.</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
