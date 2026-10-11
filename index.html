@@ -30,6 +30,18 @@
     <!-- ============ DASHBOARD ============ -->
     <section id="dashboard" aria-labelledby="dashboard-heading">
       <h2 id="dashboard-heading">Dashboard</h2>
+      <article class="card intro-card">
+        <p>
+          Welcome to the <strong>Typing Performance Tracker</strong>! Pick a difficulty,
+          type the passage shown, and see your live speed (WPM) and accuracy.
+          Your best scores are saved in this browser with LocalStorage.
+        </p>
+        <button id="startBtn" class="btn btn-primary" type="button">Start Typing Test</button>
+      </article>
+
+      <p id="emptyState" class="empty-state">
+        No tests completed yet. Click <strong>Start Typing Test</strong> to take your first test!
+      </p>
 
       <div class="stats-grid" id="dashboardStats" aria-live="polite">
         <article class="card stat-card">

@@ -153,9 +153,14 @@ function extractSectionForDifficulty(cleaned, difficulty) {
 }
 
 // Fetch ONE random article summary and validate it. Throws on any problem.
+// The thrown error carries err.status (HTTP code) when the server responded.
 async function fetchWikipediaPassage() {
   const response = await fetch(WIKI_API_URL, { headers: { accept: "application/json" } });
-  if (!response.ok) throw new Error("HTTP " + response.status);
+  if (!response.ok) {
+    const err = new Error("HTTP " + response.status);
+    err.status = response.status;
+    throw err;
+  }
   const data = await response.json();
   const title = data && typeof data.title === "string" ? data.title.trim() : "";
   const extract = data && typeof data.extract === "string" ? data.extract : "";
@@ -186,11 +191,21 @@ function difficultyScore(text, difficulty) {
 
 // Try up to WIKI_MAX_ATTEMPTS to find a passage fitting the difficulty.
 // Returns the best-scoring candidate; throws if every attempt failed.
+// Stops retrying immediately on HTTP 429: Wikipedia is rate-limiting us,
+// so further instant retries would fail too and only make it worse.
 async function getPassageForDifficulty(difficulty) {
   let best = null;
   let bestScore = Infinity;
+  let lastError = null;
   for (let attempt = 0; attempt < WIKI_MAX_ATTEMPTS; attempt++) {
-    const raw = await fetchWikipediaPassage(); // may throw -> caller falls back
+    let raw = null;
+    try {
+      raw = await fetchWikipediaPassage();
+    } catch (e) {
+      lastError = e;
+      if (e && e.status === 429) break; // rate-limited — stop now
+      continue; // transient error — try one of the remaining attempts
+    }
     if (raw.title === lastWikiTitle) continue; // avoid immediate repeat
     const section = extractSectionForDifficulty(raw.text, difficulty);
     if (section.length < WIKI_MIN_CHARS) continue; // reject short sections
@@ -203,11 +218,29 @@ async function getPassageForDifficulty(difficulty) {
     if (passageMeetsDifficulty(section, difficulty)) return candidate;
   }
   if (best) return best;
-  throw new Error("No suitable passage");
+  throw lastError || new Error("No suitable passage");
 }
 
 function getOfflinePassage(difficulty) {
   return { title: "Offline library", text: getRandomPassage(difficulty), url: "" };
+}
+
+// Build the message shown when Wikipedia is unavailable.
+function fallbackMessageFor(error) {
+  if (error && error.status === 429) {
+    return "Wikipedia is rate-limiting requests right now. Using an offline passage — " +
+      "wait a few seconds, then click New Passage to try again.";
+  }
+  return FALLBACK_MESSAGE + " (" + (error && error.message ? error.message : "network error") + ")";
+}
+
+// Switch to a built-in passage and explain why (shared by all fetch callers).
+function useOfflinePassage(difficulty, error, context) {
+  preparePassage(getOfflinePassage(difficulty));
+  showPassageStatus(fallbackMessageFor(error), true);
+  if (typeof console !== "undefined" && console.warn) {
+    console.warn("Wikipedia fetch failed (" + context + "):", error);
+  }
 }
 
 // Apply a passage object {title, text, url} and reset the test state.
@@ -248,7 +281,7 @@ function setPassageLoading(loading) {
   // can never clobber a restarted test. Dashboard/history stay usable.
   newPassageBtn.disabled = loading;
   restartBtn.disabled = loading;
-  startBtn.disabled = loading;
+  if (startBtn) startBtn.disabled = loading;
 }
 
 function getElapsedSeconds() {
@@ -373,8 +406,7 @@ async function startTest() {
     showPassageStatus("");
   } catch (e) {
     if (myId !== passageRequestSeq) return;
-    preparePassage(getOfflinePassage(currentDifficulty));
-    showPassageStatus(FALLBACK_MESSAGE, true);
+    useOfflinePassage(currentDifficulty, e, "startTest");
   } finally {
     if (myId === passageRequestSeq) setPassageLoading(false);
   }
@@ -420,8 +452,7 @@ async function pickNewPassage() {
     showPassageStatus("");
   } catch (e) {
     if (myId !== passageRequestSeq) return;
-    preparePassage(getOfflinePassage(currentDifficulty));
-    showPassageStatus(FALLBACK_MESSAGE, true);
+    useOfflinePassage(currentDifficulty, e, "pickNewPassage");
   } finally {
     if (myId === passageRequestSeq) setPassageLoading(false);
   }
@@ -441,7 +472,9 @@ async function loadInitialPassage() {
     showPassageStatus("");
   } catch (e) {
     if (myId !== passageRequestSeq) return;
-    // Offline passage already showing — stay silent, no error needed on load.
+    // Offline passage already showing — report why so "offline" is explainable.
+    showPassageStatus(fallbackMessageFor(e), true);
+    if (typeof console !== "undefined" && console.warn) console.warn("Wikipedia fetch failed (initial load):", e);
   } finally {
     if (myId === passageRequestSeq) setPassageLoading(false);
   }
@@ -571,7 +604,7 @@ function updateDashboard() {
   const emptyState = document.getElementById("emptyState");
 
   if (history.length === 0) {
-    emptyState.style.display = "";
+    if (emptyState) emptyState.style.display = "";
     document.getElementById("statBest").textContent = "—";
     document.getElementById("statLatest").textContent = "—";
     document.getElementById("statAverage").textContent = "—";
@@ -583,7 +616,7 @@ function updateDashboard() {
     return;
   }
 
-  emptyState.style.display = "none";
+  if (emptyState) emptyState.style.display = "none";
   let best = 0;
   let sum = 0;
   for (let i = 0; i < history.length; i++) {
@@ -741,9 +774,11 @@ function initializeApp() {
     }
   });
 
-  document.getElementById("startBtn").addEventListener("click", function () {
-    startTest();
-  });
+  if (startBtn) {
+    startBtn.addEventListener("click", function () {
+      startTest();
+    });
+  }
   document.getElementById("restartBtn").addEventListener("click", restartTest);
   document.getElementById("newPassageBtn").addEventListener("click", pickNewPassage);
   document.getElementById("clearHistoryBtn").addEventListener("click", clearHistory);
