@@ -1,7 +1,3 @@
-/* Typing Performance Tracker — style.css
-   Covers: selectors, box model, flexbox, grid, positioning + z-index,
-   transitions, media queries, CSS custom properties. */
-
 :root {
   --bg: #f4f6fb;
   --card: #ffffff;
@@ -37,7 +33,6 @@ body {
   padding: 0 var(--space-md);
 }
 
-/* Header */
 .site-header {
   background: var(--card);
   border-bottom: 1px solid var(--border);
@@ -93,7 +88,6 @@ body {
   outline: none;
 }
 
-/* Sections & cards (box model demo: margin, padding, border) */
 section { margin: var(--space-lg) 0; }
 section > h2 {
   border-left: 5px solid var(--accent);
@@ -120,7 +114,6 @@ section > h2 {
 }
 .muted { color: var(--muted); }
 
-/* Buttons */
 .btn {
   border: none;
   border-radius: 8px;
@@ -142,7 +135,6 @@ section > h2 {
 .button-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-md); }
 .test-buttons { margin-top: 0; align-self: flex-end; }
 
-/* Wikipedia source row + loading / status */
 .source-row { margin-bottom: var(--space-md); }
 .source-line { margin: 0 0 0.25rem; }
 .source-line a { margin-left: 0.5rem; color: var(--accent); font-weight: 600; }
@@ -162,7 +154,6 @@ section > h2 {
   50% { opacity: 0.4; }
 }
 
-/* Dashboard stats grid (CSS Grid) */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -173,7 +164,6 @@ section > h2 {
 .stat-value { font-size: 1.8rem; font-weight: 700; margin: 0; color: var(--accent-dark); }
 .stat-value small { font-size: 0.9rem; color: var(--muted); }
 
-/* Test controls (Flexbox) */
 .test-controls {
   display: flex;
   flex-wrap: wrap;
@@ -194,7 +184,6 @@ select:focus, textarea:focus, input:focus {
   border-color: var(--accent);
 }
 
-/* Passage + typing */
 .passage {
   font-size: 1.15rem;
   line-height: 2;
@@ -219,7 +208,6 @@ select:focus, textarea:focus, input:focus {
 }
 #typingInput:disabled { background: #f3f4f6; cursor: not-allowed; }
 
-/* Live stats */
 .live-grid { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
 .live-stat {
   background: #f9fafb;
@@ -233,7 +221,6 @@ select:focus, textarea:focus, input:focus {
 .live-label { font-size: 0.8rem; color: var(--muted); }
 .live-value { font-size: 1.3rem; font-weight: 700; }
 
-/* History */
 .history-summary { display: flex; gap: var(--space-lg); flex-wrap: wrap; }
 #performanceChart { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
 .history-list { list-style: none; padding: 0; margin: var(--space-md) 0 0; }
@@ -247,7 +234,6 @@ select:focus, textarea:focus, input:focus {
 
 code { background: #eef2ff; padding: 0.1rem 0.35rem; border-radius: 4px; }
 
-/* Results modal (positioning + z-index) */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -291,7 +277,6 @@ code { background: #eef2ff; padding: 0.1rem 0.35rem; border-radius: 4px; }
   margin-top: var(--space-lg);
 }
 
-/* Responsive */
 @media (max-width: 700px) {
   .header-inner { flex-direction: column; align-items: flex-start; }
   .results-grid { grid-template-columns: 1fr; }

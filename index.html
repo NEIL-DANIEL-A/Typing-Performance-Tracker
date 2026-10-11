@@ -29,7 +29,6 @@
   </header>
 
   <main class="container">
-    <!-- ============ DASHBOARD ============ -->
     <section id="dashboard" aria-labelledby="dashboard-heading">
       <h2 id="dashboard-heading">Dashboard</h2>
       <article class="card intro-card">
@@ -48,19 +47,19 @@
       <div class="stats-grid" id="dashboardStats" aria-live="polite">
         <article class="card stat-card">
           <h3>Best Speed</h3>
-          <p class="stat-value"><span id="statBest">—</span> <small>WPM</small></p>
+          <p class="stat-value"><span id="statBest">-</span> <small>WPM</small></p>
         </article>
         <article class="card stat-card">
           <h3>Latest Speed</h3>
-          <p class="stat-value"><span id="statLatest">—</span> <small>WPM</small></p>
+          <p class="stat-value"><span id="statLatest">-</span> <small>WPM</small></p>
         </article>
         <article class="card stat-card">
           <h3>Average Speed</h3>
-          <p class="stat-value"><span id="statAverage">—</span> <small>WPM</small></p>
+          <p class="stat-value"><span id="statAverage">-</span> <small>WPM</small></p>
         </article>
         <article class="card stat-card">
           <h3>Latest Accuracy</h3>
-          <p class="stat-value"><span id="statAccuracy">—</span> <small>%</small></p>
+          <p class="stat-value"><span id="statAccuracy">-</span> <small>%</small></p>
         </article>
         <article class="card stat-card">
           <h3>Tests Completed</h3>
@@ -69,7 +68,6 @@
       </div>
     </section>
 
-    <!-- ============ TYPING TEST ============ -->
     <section id="test" aria-labelledby="test-heading">
       <h2 id="test-heading">Typing Test</h2>
 
@@ -129,7 +127,6 @@
       </article>
     </section>
 
-    <!-- ============ HISTORY ============ -->
     <section id="history" aria-labelledby="history-heading">
       <h2 id="history-heading">Performance History</h2>
       <article class="card">
@@ -138,8 +135,8 @@
           They are not synced across devices and are lost if you clear browser data.
         </p>
         <div class="history-summary">
-          <p>Personal best: <strong id="historyBest">—</strong></p>
-          <p>Average WPM: <strong id="historyAvg">—</strong></p>
+          <p>Personal best: <strong id="historyBest">-</strong></p>
+          <p>Average WPM: <strong id="historyAvg">-</strong></p>
         </div>
         <canvas id="performanceChart" width="600" height="260"
           aria-label="Line chart of WPM across previous attempts"></canvas>
@@ -153,7 +150,6 @@
     </section>
   </main>
 
-  <!-- ============ RESULTS MODAL ============ -->
   <div id="resultsModal" class="modal-overlay" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="results-heading">
       <h2 id="results-heading">Test Results</h2>
@@ -175,13 +171,6 @@
       </div>
     </div>
   </div>
-
-  <footer class="site-footer">
-    <div class="container">
-      <p>Typing Performance Tracker — HTML5, CSS3 &amp; vanilla JavaScript mini-project. Data stays in your browser.</p>
-    </div>
-  </footer>
-
   <script src="script.js"></script>
 </body>
 
