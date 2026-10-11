@@ -57,6 +57,13 @@ body {
 }
 
 .brand { display: flex; align-items: center; gap: var(--space-md); }
+.brand-logo {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 12px;
+  flex-shrink: 0;
+  box-shadow: var(--shadow);
+}
 .brand-mark {
   font-size: 2rem;
   background: var(--accent);
@@ -133,6 +140,7 @@ section > h2 {
 .btn-danger:hover { background: var(--red); color: #fff; }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 .button-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-md); }
+.test-buttons { margin-top: 0; align-self: flex-end; }
 
 /* Wikipedia source row + loading / status */
 .source-row { margin-bottom: var(--space-md); }
